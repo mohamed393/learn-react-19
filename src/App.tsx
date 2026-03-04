@@ -1,62 +1,66 @@
-/*Use useTransition when an update is not urgent and it causes
- noticeable render work that can make the UI feel laggy.
-Use it for
-Filtering/searching while typing (big lists, tables)
-Switching tabs/routes/views that render heavy UI
-Updating expensive derived UI (charts, lots of components)
-Cases where you want to show a subtle “Updating…” via isPending
-Don’t bother when
-The update is fast (you can’t feel any lag)
-The update must feel instant/precise (text input value, drag, hover, animations)*/
+import {useMemo, useState, useDeferredValue, useEffect} from "react";
 
-import  { useMemo, useState, useTransition } from "react";
-
-type Tab = "home" | "analytics";
-
-function HeavyAnalytics() {
-    // Intentionally heavy CPU work during render:
-    const total = useMemo(() => {
-        let s = 0;
-        for (let i = 0; i < 80000000; i++) s += i % 10;
-        return s;
-    }, []);
-
-    return <div>Heavy analytics computed: {total}</div>;
+// Demo: create a large list so you can actually notice the benefit
+function makeItems(count: number) {
+    const words = ["apple", "banana", "orange", "grape", "mango", "kiwi", "melon"];
+    return Array.from({ length: count }, (_, i) => {
+        const w = words[i % words.length];
+        return `${w} item #${i}`;
+    });
 }
 
-export default function TabsPendingDemo() {
-    const [tab, setTab] = useState<Tab>("home");
-    const [count, setCount] = useState(0);
-    const [isPending, startTransition] = useTransition();
+const ITEMS = makeItems(500);
 
-    function selectTab(nextTab: Tab) {
-        // Non-urgent update (may be deferred / interruptible)
-        startTransition(() => {
-            setTab(nextTab);
-        });
-    }
+export default function DeferredSearchDemo() {
+    const [query, setQuery] = useState("");
+
+    // This value is allowed to lag behind during heavy renders
+    const deferredQuery = useDeferredValue(query);
+
+    // If these differ, React is still catching up rendering the new results
+    const isStale = query !== deferredQuery;
+
+    const results = useMemo(() => {
+        const q = deferredQuery.trim().toLowerCase();
+        if (!q) return ITEMS.slice(0, 200); // show a small default set
+
+        // Filtering a big list can be heavy—this is where deferring helps
+        return ITEMS.filter((x) => x.toLowerCase().includes(q)).slice(0, 200);
+    }, [deferredQuery]);
+    useEffect(() => {
+        fetch('https://jsonplaceholder.typicode.com/posts/1').then(res=>{
+            console.log('fetch',res);
+        })
+    }, [deferredQuery]);
 
     return (
         <div style={{ fontFamily: "sans-serif", padding: 16 }}>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <button onClick={() => selectTab("home")}>Home</button>
-                <button onClick={() => selectTab("analytics")}>Analytics (heavy)</button>
+            <h2>useDeferredValue Search</h2>
+            <p>query :{query} </p>
+            <p>deferredQuery: {deferredQuery}</p>
 
-                {/* Urgent update: should stay responsive */}
-                <button onClick={() => setCount((c) => c + 1)}>+1 (urgent)</button>
-                <span>count: {count}</span>
+            <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Type to search…"
+                style={{ padding: 8, width: 320 }}
+            />
 
-                {/* This is the key: visible pending state */}
-                {isPending && <span style={{ marginLeft: 8 }}>Switching…</span>}
+            <div style={{ marginTop: 8, minHeight: 24 }}>
+                {isStale ? <span>Updating results…</span> : <span>&nbsp;</span>}
             </div>
 
-            <hr />
+            <div style={{ marginTop: 8 }}>
+                <div style={{ marginBottom: 8 }}>
+                    Showing {results.length} results (out of {ITEMS.length})
+                </div>
 
-            {tab === "home" ? (
-                <div>Home content</div>
-            ) : (
-                <HeavyAnalytics />
-            )}
+                <ul>
+                    {results.map((x) => (
+                        <li key={x}>{x}</li>
+                    ))}
+                </ul>
+            </div>
         </div>
     );
 }
