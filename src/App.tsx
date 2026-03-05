@@ -1,4 +1,5 @@
-import {useMemo, useState, useDeferredValue, useEffect} from "react";
+import {useMemo, useState, useEffect} from "react";
+import {useDebounce} from "./hooks/useDebounce.tsx";
 
 // Demo: create a large list so you can actually notice the benefit
 function makeItems(count: number) {
@@ -13,31 +14,28 @@ const ITEMS = makeItems(500);
 
 export default function DeferredSearchDemo() {
     const [query, setQuery] = useState("");
-
+    const debouncedSearch = useDebounce(query, 400);
     // This value is allowed to lag behind during heavy renders
-    const deferredQuery = useDeferredValue(query);
-
-    // If these differ, React is still catching up rendering the new results
-    const isStale = query !== deferredQuery;
+    // const deferredQuery = useDeferredValue(query);
 
     const results = useMemo(() => {
-        const q = deferredQuery.trim().toLowerCase();
+        const q = debouncedSearch.trim().toLowerCase();
         if (!q) return ITEMS.slice(0, 200); // show a small default set
 
         // Filtering a big list can be heavy—this is where deferring helps
         return ITEMS.filter((x) => x.toLowerCase().includes(q)).slice(0, 200);
-    }, [deferredQuery]);
+    }, [debouncedSearch]);
     useEffect(() => {
         fetch('https://jsonplaceholder.typicode.com/posts/1').then(res=>{
-            console.log('fetch',res);
+            console.log(res);
         })
-    }, [deferredQuery]);
+    }, [debouncedSearch]);
 
     return (
         <div style={{ fontFamily: "sans-serif", padding: 16 }}>
             <h2>useDeferredValue Search</h2>
             <p>query :{query} </p>
-            <p>deferredQuery: {deferredQuery}</p>
+            <p>deferredQuery: {debouncedSearch}</p>
 
             <input
                 value={query}
@@ -46,9 +44,6 @@ export default function DeferredSearchDemo() {
                 style={{ padding: 8, width: 320 }}
             />
 
-            <div style={{ marginTop: 8, minHeight: 24 }}>
-                {isStale ? <span>Updating results…</span> : <span>&nbsp;</span>}
-            </div>
 
             <div style={{ marginTop: 8 }}>
                 <div style={{ marginBottom: 8 }}>
