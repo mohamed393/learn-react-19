@@ -1,38 +1,24 @@
-/* B) Not stale, but restarts interval on every count change
-import { useEffect, useState } from "react";
-export default function App() {
-    const [count, setCount] = useState(0);
+/*With a Promise: while it’s pending, the component suspends; if rejected,
+ the nearest Error Boundary handles it.*/
+import { Suspense, use, useMemo, useState } from "react";
 
-    useEffect(() => {
-        const id = setInterval(() => {
-            console.log("count =", count); // ❌ stale after first render
-        }, 1000);
-
-        return () => clearInterval(id);
-    }, []); // interval never restarts, but count is stale
-
-    return <button onClick={() => setCount((c) => c + 1)}>Count: {count}</button>;
+function Message({ promise }:{promise:Promise<any>}) {
+    const text = use(promise); // suspends while pending
+    return <p>{text}</p>;
 }
-*/
-/*
-* useEffectEvent lets you write event/handler logic that always sees
-* the latest props/state without forcing your useEffect to re-run.*/
-import { useEffect, useState, useEffectEvent } from "react";
 
 export default function App() {
-    const [count, setCount] = useState(0);
+    const [id, setId] = useState(1);
 
-    const logCount = useEffectEvent(() => {
-        console.log("count =", count); // ✅ always latest
-    });
+    // cache the Promise so it doesn't change on unrelated re-renders
+    const promise = useMemo(() => fetch(`https://jsonplaceholder.typicode.com/posts/${id}`).then(r => r.text()), [id]);
 
-    useEffect(() => {
-        const id = setInterval(() => {
-            logCount(); // ✅ interval stays the same
-        }, 1000);
-
-        return () => clearInterval(id);
-    }, []); // ✅ no count here
-
-    return <button onClick={() => setCount((c) => c + 1)}>Count: {count}</button>;
+    return (
+        <>
+            <button onClick={() => setId((x) => x + 1)}>Next</button>
+            <Suspense fallback={<p>Loading…</p>}>
+                <Message promise={promise} />
+            </Suspense>
+        </>
+    );
 }
